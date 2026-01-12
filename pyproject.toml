@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fraudstruct"
+version = "1.0.0"
+description = "Adversarial machine learning framework for bank fraud detection"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Chidiebere V. Christopher"}
+]
+
+dependencies = [
+    "pandas>=1.5",
+    "numpy>=1.23",
+    "scikit-learn>=1.2"
+]
+
+[project.optional-dependencies]
+spark = ["pyspark>=3.4"]
+dev = ["pytest", "black", "flake8", "jupyter"]
