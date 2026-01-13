@@ -10,12 +10,47 @@ It supports **batch analytics**, **large-scale Spark processing**, **adversarial
 
 In real banking environments:
 
-- Transaction data does **not** originate from a single internal database  
+- Transaction data originates from **external providers** (NIBSS, PTSPs, Fintechs), as well as internal
 - POS, Card, USSD, Mobile App transactions arrive from **different providers**  
-- Customer or merchant identifiers are often **missing or inconsistent**  
-- Fraudsters actively **adapt to model thresholds**
+- Customer or merchant identifiers are often **missing or inconsistent**
+- Channels are **siloed** and identifiers are inconsistent
+- Fraudsters actively **learn bank thresholds and model behavior**
+- Point-in-time models miss **temporal and coordinated fraud**
 
-**Fraudstruct is built for this reality.**
+**Fraudstruct addresses these realities directly.**
+
+
+
+## **What Fraudstruct Does**
+
+### 🔍 **Adversarial Fraud Detection**
+Detects fraud that looks legitimate at the transaction level:
+
+- Transaction structuring (smurfing)
+- Threshold evasion
+- Rapid debit behavior
+- Behavioral camouflage
+- Gradual trust abuse
+- Label integrity failures
+
+---
+
+### 🧪 **Synthetic Adversarial Data Generation**
+Generates **realistic adversarial transaction data** by transforming real behavior:
+
+- Amount splitting attacks
+- Behavior imitation
+- Trust-building fraud
+- Label poisoning scenarios
+
+This data is used for:
+- Model stress testing
+- Adversarial training
+- Fraud rule validation
+- Audit evidence
+
+---
+
 
 ---
 
