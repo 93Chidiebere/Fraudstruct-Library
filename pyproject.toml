@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fraudstruct"
 version = "1.0.0"
-description = "Adversarial machine learning framework for bank fraud detection"
+description = "Adversarial machine learning framework for bank fraud detection and model simulation"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
-    {name = "Chidiebere V. Christopher"}
+    {name = "Chidiebere V. Christopher", email = "vchidiebere.vc@gmail.com"}
 ]
 
 dependencies = [
