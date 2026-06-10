@@ -23,7 +23,7 @@ In real banking environments:
 
 ## **What Fraudstruct Does**
 
-### 🔍 **Adversarial Fraud Detection**
+### **Adversarial Fraud Detection**
 Detects fraud that looks legitimate at the transaction level:
 
 - Transaction structuring (smurfing)
@@ -35,7 +35,7 @@ Detects fraud that looks legitimate at the transaction level:
 
 ---
 
-### 🧪 **Synthetic Adversarial Data Generation**
+### **Synthetic Adversarial Data Generation**
 Generates **realistic adversarial transaction data** by transforming real behavior:
 
 - Amount splitting attacks
@@ -51,28 +51,25 @@ This data is used for:
 
 ---
 
-
----
-
 ## **Core Capabilities**
 
-### 🔍 **Adversarial Fraud Detection**
+### **Adversarial Fraud Detection**
 - Structuring / Smurfing detection  
 - Threshold evasion patterns  
 - Rapid debit behavior analysis  
 - Temporal aggregation across noisy identifiers  
 
-### ⚙️ **Batch-First, Model-Builder Friendly**
+### **Batch-First, Model-Builder Friendly**
 - Designed for **offline fraud analysis**  
 - Integrates naturally into **feature engineering pipelines**  
 - Pandas for small data, Spark for large data  
 
-### 🧠 **Adversarial Training Integration**
+### **Adversarial Training Integration**
 - Generate adversarial transaction scenarios  
 - Stress-test fraud models before deployment  
 - Plug into ML training loops (CV/NLP-style adversarial training)  
 
-### 🏦 **Audit & Model Risk Alignment**
+### **Audit & Model Risk Alignment**
 - Deterministic outputs  
 - Parameter traceability  
 - Monthly / quarterly / annual audit support  
@@ -251,11 +248,6 @@ Fraudstruct is a specialized analytical library.
 ## **License**
 
 MIT License
-
-
-**Final Note**
-
-Fraudstruct is built to reflect how fraud actually happens, if you work in banking fraud, risk, or model validation, this library was designed for you.
 
 
 
