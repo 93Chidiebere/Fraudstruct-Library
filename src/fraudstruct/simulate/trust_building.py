@@ -1,5 +1,3 @@
-import pandas as pd
-
 def simulate_trust_building(df, days=30):
     df = df.sort_values("timestamp").copy()
     cutoff = df["timestamp"].min() + pd.Timedelta(days=days)

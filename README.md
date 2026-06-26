@@ -1,287 +1,177 @@
 # **Fraudstruct**
 
-**Fraudstruct** is a *library-first* Python framework for **adversarial machine learning in banking fraud detection**, designed to help Data Scientists detect **structuring (smurfing)**, **threshold evasion**, and **behavioral manipulation** in transaction data — even when data originates from **multiple external providers** (NIBSS, PTSPs, Fintechs).
+**Fraudstruct** is a high-performance Python framework for **real-time streaming feature stores and graph-adversarial machine learning in banking fraud detection**. It is designed to help Data Scientists and Risk Engineers simulate, detect, and harden models against **structuring (smurfing)**, **multi-hop money laundering**, and **threshold evasion** in transaction streams.
 
-It supports **batch analytics**, **large-scale Spark processing**, **adversarial training loops**, and **audit-ready outputs** aligned with **banking model risk requirements**.
+The library supports a production-ready **Three-Tier Architecture** that bridges deep offline Graph Neural Networks (GNNs) with sub-10ms real-time transaction authorization endpoints.
 
 ---
 
 ## **Why Fraudstruct Exists**
 
-In real banking environments:
+Traditional fraud models degrade rapidly because fraudsters actively adapt to rule-based thresholds (e.g., splitting a transaction into smaller amounts across proxy accounts/mules). 
 
-- Transaction data originates from **external providers** (NIBSS, PTSPs, Fintechs), as well as internal
-- POS, Card, USSD, Mobile App transactions arrive from **different providers**  
-- Customer or merchant identifiers are often **missing or inconsistent**
-- Channels are **siloed** and identifiers are inconsistent
-- Fraudsters actively **learn bank thresholds and model behavior**
-- Point-in-time models miss **temporal and coordinated fraud**
-
-**Fraudstruct addresses these realities directly.**
-
-
-
-## **What Fraudstruct Does**
-
-### **Adversarial Fraud Detection**
-Detects fraud that looks legitimate at the transaction level:
-
-- Transaction structuring (smurfing)
-- Threshold evasion
-- Rapid debit behavior
-- Behavioral camouflage
-- Gradual trust abuse
-- Label integrity failures
+Fraudstruct addresses these operational realities:
+* **Coordinated Multi-Hop Fraud**: Fraudsters use network topologies to evade single-account checks.
+* **Strict Latency Budgets**: Banks must authorize transactions in **<50ms**, making traditional graph neural network (GNN) convolution passes on the transaction hot-path infeasible.
+* **Continuous Adaptive Evasion**: Evasion techniques evolve faster than weekly or monthly model retraining loops.
 
 ---
 
-### **Synthetic Adversarial Data Generation**
-Generates **realistic adversarial transaction data** by transforming real behavior:
+## **System Architecture Overview**
 
-- Amount splitting attacks
-- Behavior imitation
-- Trust-building fraud
-- Label poisoning scenarios
+Fraudstruct resolves the latency-complexity trade-off using a **Three-Tier Lambda-style ML System**:
 
-This data is used for:
-- Model stress testing
-- Adversarial training
-- Fraud rule validation
-- Audit evidence
+```
+           [Core Banking / NIBSS / Switch]
+                          │
+         (1) Synchronous API Request (e.g. NIP/ISO 8583)
+                          ▼
+             ┌─────────────────────────┐
+             │    HOT PATH (<10ms)     │
+             │   REST API (FastAPI)    │◄─── [Loaded Model Weights]
+             └────────────┬────────────┘
+                          │ (Retrieves pre-computed GNN + temporal features)
+                          ▼
+                  ┌──────────────┐
+                  │ Feature Cache│
+                  └──────▲───────┘
+                         │ (Updates features in real-time)
+             ┌───────────┴─────────────┐
+             │    WARM PATH (<1s)      │
+             │  Streaming Event Loop   │◄─── [Transaction Log Stream]
+             └───────────┬─────────────┘
+                         │ (Aggregates historical subgraph structures)
+                         ▼
+             ┌─────────────────────────┐
+             │    COLD PATH (Offline)  │
+             │ NumPy SGC GNN Classifier│◄─── [Graph Attack Simulator]
+             └─────────────────────────┘
+```
+
+1. **Hot Path (Synchronous Inference)**: A lightweight REST API that retrieves pre-computed graph features and rolling temporal stats, evaluates fast rules + GNN score thresholds, and responds in **<5ms** (satisfying strict banking SLAs).
+2. **Warm Path (Near Real-Time Feature Store)**: A streaming engine that consumes transaction streams, updates the transaction graph structure (using `GraphEngine`), and updates rolling temporal windows in memory.
+3. **Cold Path (Offline Training & Simulation)**: Generates synthetic multi-hop structuring attacks on the graph, trains a **Simplifying Graph Convolution (SGC)** GNN model, and hot-deploys updated model weights to the Hot Path.
 
 ---
 
-## **Core Capabilities**
+## **Key Capabilities**
 
-### **Adversarial Fraud Detection**
-- Structuring / Smurfing detection  
-- Threshold evasion patterns  
-- Rapid debit behavior analysis  
-- Temporal aggregation across noisy identifiers  
+### **1. Graph representation & Feature Store**
+* NetworkX-powered transaction graph engine (`GraphEngine`) that models accounts as nodes and transactions as edges.
+* Real-time calculation of topological features (in-degree, out-degree, PageRank, running sums, and velocities).
 
-### **Batch-First, Model-Builder Friendly**
-- Designed for **offline fraud analysis**  
-- Integrates naturally into **feature engineering pipelines**  
-- Pandas for small data, Spark for large data  
+### **2. Graph-Based Evasion Simulation**
+* Multi-hop transaction-splitting simulator (`simulate_graph_splitting`). Splits a target amount $S$ from $A \rightarrow B$ across $K$ dynamic mule pathways, adding temporal spacing and amount jittering to mimic realistic money laundering.
 
-### **Adversarial Training Integration**
-- Generate adversarial transaction scenarios  
-- Stress-test fraud models before deployment  
-- Plug into ML training loops (CV/NLP-style adversarial training)  
+### **3. Portability & Performance (Pure NumPy GNN)**
+* Implementation of **Simplifying Graph Convolution (SGC)** (Wu et al., 2019) in pure NumPy, removing heavy compile dependencies (e.g. PyTorch Geometric or C++ bindings) and allowing seamless execution under Python 3.13.
 
-### **Audit & Model Risk Alignment**
-- Deterministic outputs  
-- Parameter traceability  
-- Monthly / quarterly / annual audit support  
-- SR 11-7-style documentation readiness  
+### **4. Real-time REST API**
+* FastAPI endpoint exposing `/v1/evaluate` for real-time transaction scoring and `/v1/train` to hot-deploy trained graph embeddings to the feature store.
 
 ---
 
 ## **Installation**
 
-### **Standard (Pandas / Local Analysis)**
+Install the library locally:
 
 ```bash
-pip install fraudstruct
+pip install -e .
 ```
 
-**With Spark Support**
+### **Required Dependencies**
+* `pandas`
+* `numpy`
+* `networkx`
+* `fastapi`
+* `httpx`
 
-```bash
-pip install fraudstruct[spark]
-```
+---
 
 ## **Quick Start**
 
-**1. Load Transaction Data**
+### **1. Running the End-to-End Pipeline & Benchmark**
+Fraudstruct comes with a comprehensive verification script that runs the entire warm, hot, and cold path loop and profiles API latency:
 
-Fraudstruct assumes provider-agnostic schemas, not idealized bank schemas.
-
-Minimum required columns:
-
-- entity_id → proxy identifier (account hash, device ID, token, etc.)
-
-- timestamp
-
-- amount
-
-```python
-import pandas as pd
-
-df = pd.read_csv("transactions.csv")
+```bash
+python test_pipeline.py
 ```
 
-**2. Initialize the Processing Engine**
+*Expected output log:*
+```
+==================================================
+FRAUDSTRUCT PIPELINE VERIFICATION AND BENCHMARK
+==================================================
+[Step 1] Generating organic transaction traffic...
+Generated 150 organic transactions.
 
-```python
-from fraudstruct.engine import PandasEngine
+[Step 2] Simulating adversarial smurfing path (A -> Mules -> B)...
+Generated 12 attack path transactions.
 
-engine = PandasEngine(df)
+[Step 3] Feeding organic stream to API evaluate endpoint...
+Inference Latency Metric (ZENITH SLA check):
+  - Average Latency: 2.447 ms
+  - 95th Percentile: 3.407 ms
+
+[Step 4] Feeding attack stream and checking for alerts...
+ALERT TRIGGERED on TXN-ADV-46940! Decision: FLAG, Reasons: ['Debit velocity structuring threshold breached: Sum=600000.0, Count=6']
+
+[Step 5] Triggering Cold Path GNN Training & Hot-Deployment...
+Training response: {'status': 'Success', 'message': 'GNN model successfully trained and hot-deployed.', 'trained_nodes_count': 52}
+
+[Step 6] Verifying active GNN blocking post-deployment...
+Post-GNN deployment evaluation result for attacker:
+  - Decision: BLOCK
+  - Reasons: ['High GNN network anomaly score: 0.9650']
+  - GNN Anomaly Score: 0.965
 ```
 
-**3. Detect Structuring (Smurfing)**
+---
 
-```python
-from fraudstruct.detect.structuring import detect_structuring
+## **API Reference**
 
-results = detect_structuring(
-    engine,
-    window="1H",
-    count_threshold=5,
-    sum_threshold=300_000
-)
+### **Evaluate Transaction**
+Exposes a NIBSS Instant Payment (NIP) compliant payload structure:
 
-```
+* **Endpoint**: `POST /v1/evaluate`
+* **Request Body**:
+  ```json
+  {
+    "transaction_id": "TXN-90283",
+    "source_account": "1029384756",
+    "destination_account": "2093847561",
+    "amount": 250000.0,
+    "timestamp": "2026-06-26T17:00:00Z",
+    "channel": "NIP"
+  }
+  ```
+* **Response Body**:
+  ```json
+  {
+    "transaction_id": "TXN-90283",
+    "decision": "APPROVE",
+    "reasons": [],
+    "latency_ms": 2.447,
+    "features": {
+      "rolling_sum": 250000.0,
+      "rolling_count": 1,
+      "in_degree": 0,
+      "out_degree": 1,
+      "gnn_anomaly_score": 0.0
+    }
+  }
+  ```
 
-What this detects:
+---
 
-- Multiple small debits
+## **Academic Thesis Contributions**
+This repository serves as the empirical codebase for an MSc thesis in Computer Science:
+1. **Graph-Based Tabular Evasion Modeling**: Bridges graph topology with tabular business constraints by formalizing smurfing as a dynamic flow-splitting optimization problem.
+2. **Decoupled Real-Time Streaming Graph Inference**: Proves that GNN node features can be successfully cached and served in transaction authorization switches under a `<10ms` SLA.
+3. **Online Graph Adversarial Hardening**: Details a continuous learning framework that updates graph embeddings in response to dynamic topology shifts.
 
-- Within a short time window
-
-- That collectively breach regulatory or internal thresholds
-
-
-**Supported Detection Modules**
-
-| Module              | Description                        |
-| ------------------- | ---------------------------------- |
-| `structuring`       | Smurfing / split-payment detection |
-| `threshold_evasion` | Avoidance of rule-based limits     |
-| `debit_velocity`    | Rapid-fire transaction behavior    |
-| `behavioral_shift`  | Distributional behavior change     |
-
-
-**Adversarial Data Simulation**
-
-Fraudstruct can generate synthetic adversarial transactions to test fraud systems.
-```python
-from fraudstruct.simulate.structuring import generate_structured_transactions
-
-adv_df = generate_structured_transactions(
-    base_df=df,
-    target_amount=500_000,
-    n_splits=10
-)
-
-```
-Use cases:
-
-- Model stress testing
-
-- Fraud rule validation
-
-- Red-team simulations
-
-
-**Adversarial Training Loop**
-
-Fraudstruct integrates into ML pipelines just like adversarial training in CV/NLP:
-```python
-for epoch in range(n_epochs):
-    model.fit(X_train, y_train)
-
-    adv_data = fraudstruct.simulate(...)
-    model.fit(adv_data.X, adv_data.y)
-
-```
-This helps models learn fraudster behavior, not just past labels.
-
-Large-Scale / Spark Support
-
-Fraudstruct automatically supports Spark when enabled:
-```python
-from fraudstruct.engine import SparkEngine
-
-engine = SparkEngine(spark_df)
-
-```
-
-- Same API.
-
-- Same logic.
-
-- Different scale.
-
-
-## **Audit & Governance Support**
-
-Fraudstruct is designed to support:
-
-✔ Parameter logging
-
-✔ Deterministic re-runs
-
-✔ Result reproducibility
-
-✔ Evidence generation for validators
-
-Outputs are audit-ready by design, not as an afterthought.
-
-
-## **Who Should Use Fraudstruct**
-
-- Bank Data Scientists
-
-- Fraud Analytics Teams
-
-- Model Risk & Validation Units
-
-- Financial Crime & Compliance Teams
-
-- Fintech Risk Engineers
-  
-
-## **What Fraudstruct Is NOT**
-
-❌ A real-time transaction switch
-
-❌ A rule engine replacement
-
-❌ A data ingestion platform
-
-❌ A black-box ML model
-
-Fraudstruct is a specialized analytical library.
-
+---
 
 ## **License**
 
 MIT License
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
