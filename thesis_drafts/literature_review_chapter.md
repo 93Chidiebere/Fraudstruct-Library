@@ -80,7 +80,20 @@ Finally, Mohammed et al. (2026) ([arXiv:2602.00000](https://arxiv.org/abs/2602.0
 
 ---
 
-## 2.5 Synthesis and Gaps in the Literature
+## 2.5 Industry Initiatives: NIBSS Hawk Ecosystem-Level Defense
+While academic literature and regulatory circulars focus on theoretical standards and general mandates, the practical execution of ecosystem-wide fraud prevention in Nigeria is represented by the **NIBSS Hawk** initiative (NIBSS, 2025). The central limitation of bank-level fraud management is its siloed nature; an individual commercial bank only has visibility into its own internal customer ledger. Consequently, establishing multi-hop mule account connections across different institutions remains highly difficult.
+
+The NIBSS Hawk platform is designed to transition the financial sector from siloed institution-level fraud management to coordinated, ecosystem-level fraud management. Operating as a multi-tenant centralized system, Hawk integrates transactional data from 161 financial institutions (as of late 2025) and connects directly with the Bank Verification Number (BVN) database, the Identity Database (NIN), and the Industry Common Anti-Money Laundering Database (ICAD) to establish a shared fraud intelligence network. 
+
+According to NIBSS performance milestones, the Hawk system flagged over 1.13 million suspicious cases and detected 29,058 transactions linked to invalid BVNs in 2025 alone. Crucially, the platform's upcoming roadmap specifies the integration of **Machine Learning, AI, and Link Analysis** as core ecosystem-level enhancements. 
+
+However, centralized ecosystem monitoring introduces severe data privacy and transfer concerns under the **Nigerian Data Protection Act (NDPA)**. Sharing raw inter-bank transaction records can violate customer confidentiality guidelines. 
+
+This establishes a critical engineering challenge: how to execute joint, ecosystem-wide graph link analysis and GNN-based detection without exposing raw personally identifiable information (PII). This study directly addresses this challenge in the proposed future work by outlining fully homomorphic encryption (FHE) techniques for Simplifying Graph Convolutions (SGC), aligning bank-level implementations (like Fraudstruct) with centralized clearing architectures (like NIBSS Hawk).
+
+---
+
+## 2.6 Synthesis and Gaps in the Literature
 A critical synthesis of the literature reveals three primary gaps:
 
 1. **The Real-Time Graph Latency Gap**: While SOTA models (such as temporal GNNs and multi-view GATs) achieve high detection recall, their execution budgets are evaluated on offline static datasets. The literature does not provide a validated architectural implementation that can serve GNN-derived features under a $<10\text{ms}$ SLA in live payment switches (like Postilion or Finacle).
@@ -88,3 +101,4 @@ A critical synthesis of the literature reveals three primary gaps:
 3. **Coordinated Tabular Evasion**: Most tabular adversarial attacks focus on continuous, unconstrained perturbations (e.g., adding noise to age or balances). There is a gap in simulating realistic graph-structured attacks that respect domain rules (like flow conservation and transaction splitting) to stress-test real-time detection systems.
 
 **Fraudstruct** addresses these gaps directly by proposing a decoupled three-tier Lambda architecture, implementing a pure-NumPy SGC model, and building a flow-constrained graph adversarial simulator.
+
