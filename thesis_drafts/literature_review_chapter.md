@@ -80,16 +80,29 @@ Finally, Mohammed et al. (2026) ([arXiv:2602.00000](https://arxiv.org/abs/2602.0
 
 ---
 
-## 2.5 Industry Initiatives: NIBSS Hawk Ecosystem-Level Defense
-While academic literature and regulatory circulars focus on theoretical standards and general mandates, the practical execution of ecosystem-wide fraud prevention in Nigeria is represented by the **NIBSS Hawk** initiative (NIBSS, 2025). The central limitation of bank-level fraud management is its siloed nature; an individual commercial bank only has visibility into its own internal customer ledger. Consequently, establishing multi-hop mule account connections across different institutions remains highly difficult.
+## 2.5 Industry Initiatives and Commercial Deployments in Nigeria
+While academic literature and regulatory circulars focus on theoretical standards and general mandates, the practical execution of real-time fraud prevention in Nigeria is split between centralized clearing-house infrastructure and institution-level commercial deployments. The central limitation of bank-level fraud management is its siloed nature; an individual commercial bank only has visibility into its own internal customer ledger, making it highly difficult to establish multi-hop mule account connections across different institutions.
 
-The NIBSS Hawk platform is designed to transition the financial sector from siloed institution-level fraud management to coordinated, ecosystem-level fraud management. Operating as a multi-tenant centralized system, Hawk integrates transactional data from 161 financial institutions (as of late 2025) and connects directly with the Bank Verification Number (BVN) database, the Identity Database (NIN), and the Industry Common Anti-Money Laundering Database (ICAD) to establish a shared fraud intelligence network. 
+### 2.5.1 Centralized Infrastructure: NIBSS Hawk
+The primary ecosystem-level defense is the **NIBSS Hawk** initiative (NIBSS, 2025). Operating as a multi-tenant centralized system connecting 161 financial institutions (as of late 2025), Hawk integrates transactional data from payment channels and connects directly with the Bank Verification Number (BVN) database, the Identity Database (NIN), and the Industry Common Anti-Money Laundering Database (ICAD) to establish a shared fraud intelligence network. 
 
-According to NIBSS performance milestones, the Hawk system flagged over 1.13 million suspicious cases and detected 29,058 transactions linked to invalid BVNs in 2025 alone. Crucially, the platform's upcoming roadmap specifies the integration of **Machine Learning, AI, and Link Analysis** as core ecosystem-level enhancements. 
-
-However, centralized ecosystem monitoring introduces severe data privacy and transfer concerns under the **Nigerian Data Protection Act (NDPA)**. Sharing raw inter-bank transaction records can violate customer confidentiality guidelines. 
+According to NIBSS performance milestones, the Hawk system flagged over 1.13 million suspicious cases and detected 29,058 transactions linked to invalid BVNs in 2025 alone. Crucially, the platform's upcoming roadmap specifies the integration of **Machine Learning, AI, and Link Analysis** as core ecosystem-level enhancements. However, centralized ecosystem monitoring introduces severe data privacy and transfer concerns under the **Nigerian Data Protection Act (NDPA)**. Sharing raw inter-bank transaction records can violate customer confidentiality guidelines. 
 
 This establishes a critical engineering challenge: how to execute joint, ecosystem-wide graph link analysis and GNN-based detection without exposing raw personally identifiable information (PII). This study directly addresses this challenge in the proposed future work by outlining fully homomorphic encryption (FHE) techniques for Simplifying Graph Convolutions (SGC), aligning bank-level implementations (like Fraudstruct) with centralized clearing architectures (like NIBSS Hawk).
+
+### 2.5.2 Institution-Level Commercial Deployments
+To secure their individual transaction gateways, Nigerian commercial banks deploy global enterprise-grade fraud detection and AML engines:
+* **NetGuardians Enterprise Risk Platform**: Deployed by Keystone Bank and other commercial banks, NetGuardians utilizes machine learning and behavioral analytics to screen transaction streams in real time. The software builds dynamic profiles of "normal" customer behavior to detect unauthorized electronic banking fraud and reduce false positives.
+* **SAS Fraud Framework**: Adopted by Zenith Bank, the SAS Fraud Framework replaced legacy, batch-based manual audit trails with automated real-time transaction screening. Deployed at the database and application layers, it has significantly reduced anomaly detection times from hours/days to minutes.
+* **Clari5 Enterprise Fraud Management (EFM)**: Integrated in partnership with local technology systems vendors (such as CWG PLC), Clari5 is deployed across West African banks to monitor cross-channel transactions (ATM, Mobile, USSD, POS) in real-time, matching transaction events against configured risk rule matrices.
+* **NICE Actimize**: Adopted by large tier-1 institutions (like Access Bank and UBA) for unified AML compliance, watchlist screening, and KYC onboarding.
+
+### 2.5.3 The Technical Research Gap in Commercial Systems
+Despite heavy commercial investments in NetGuardians, SAS, and Actimize, these platforms remain fundamentally **entity-centric**. Their models evaluate the risk of a transaction based on the historical behavior and demographic attributes of a *single customer account*. 
+
+Consequently, they are structurally blind to **coordinated, multi-hop structuring (smurfing)**, where a large fraudulent sum is split into multiple sub-threshold amounts and routed through clean mule accounts. Because each mule account exhibits "normal" transaction amounts and velocity profiles locally, entity-centric behavioral models do not trigger alerts. 
+
+This research gaps highlights the need for **Fraudstruct**, a system designed to construct dynamic transaction graphs and execute Simplifying Graph Convolutions (SGC) synchronously under a sub-3ms SLA, enabling banks to detect topological structuring at the gateway.
 
 ---
 

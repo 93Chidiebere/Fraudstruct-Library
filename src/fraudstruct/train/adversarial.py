@@ -1,3 +1,4 @@
+import pandas as pd
 from fraudstruct.simulate.splitting import simulate_splitting
 
 def adversarial_fit(
@@ -12,8 +13,8 @@ def adversarial_fit(
 
     for _ in range(rounds):
         adv = attack_fn(X_adv)
-        X_adv = X_adv.append(adv, ignore_index=True)
-        y_adv = y_adv.append(y_adv.iloc[:len(adv)], ignore_index=True)
+        X_adv = pd.concat([X_adv, adv], ignore_index=True)
+        y_adv = pd.concat([y_adv, y_adv.iloc[:len(adv)]], ignore_index=True)
 
         model.fit(X_adv, y_adv)
 

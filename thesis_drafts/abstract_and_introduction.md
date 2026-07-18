@@ -1,8 +1,17 @@
-# THESIS ABSTRACT & CHAPTER 1: INTRODUCTION
+# THESIS TITLE PAGE
 
-This document contains the academic-grade drafts of the **Abstract** and **Chapter 1 (Introduction)** for your MSc Computer Science thesis.
+# Fraudstruct: A Low-Latency Decoupled Streaming Framework for Real-Time Transaction Structuring Detection
+
+A thesis submitted in partial fulfillment of the requirements for the degree of  
+**Master of Science (MSc) in Computer Science**
+
+* **Author:** Chidiebere V. Christopher
+* **Email:** vchidiebere.vc@gmail.com
+* **Project Repository:** Fraudstruct-Library
+* **Date:** July 2026
 
 ---
+
 
 # ABSTRACT
 
