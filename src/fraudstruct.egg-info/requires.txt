@@ -1,12 +1,17 @@
 pandas>=1.5
 numpy>=1.23
 scikit-learn>=1.2
+fastapi>=0.95.0
+uvicorn>=0.20.0
+networkx>=2.8
 
 [dev]
 pytest
 black
 flake8
 jupyter
+build
+twine
 
 [spark]
 pyspark>=3.4

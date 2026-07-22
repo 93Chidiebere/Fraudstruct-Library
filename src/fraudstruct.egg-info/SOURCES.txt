@@ -1,5 +1,7 @@
 README.md
 pyproject.toml
+src/fraudstruct/__init__.py
+src/fraudstruct/compliance_portal.py
 src/fraudstruct.egg-info/PKG-INFO
 src/fraudstruct.egg-info/SOURCES.txt
 src/fraudstruct.egg-info/dependency_links.txt
@@ -14,8 +16,10 @@ src/fraudstruct/core/statistics.py
 src/fraudstruct/core/windows.py
 src/fraudstruct/detect/behavior.py
 src/fraudstruct/detect/drift.py
+src/fraudstruct/detect/gcn.py
 src/fraudstruct/detect/integrity.py
 src/fraudstruct/detect/structuring.py
+src/fraudstruct/engines/graph.py
 src/fraudstruct/engines/pandas.py
 src/fraudstruct/engines/spark.py
 src/fraudstruct/evaluate/blindspots.py
@@ -23,9 +27,11 @@ src/fraudstruct/evaluate/degradation.py
 src/fraudstruct/evaluate/robustness.py
 src/fraudstruct/io/export.py
 src/fraudstruct/simulate/camouflage.py
+src/fraudstruct/simulate/graph_attack.py
 src/fraudstruct/simulate/label_poisoning.py
 src/fraudstruct/simulate/splitting.py
 src/fraudstruct/simulate/trust_building.py
+src/fraudstruct/stream/api.py
 src/fraudstruct/stream/detectors.py
 src/fraudstruct/stream/engine.py
 src/fraudstruct/stream/run.py

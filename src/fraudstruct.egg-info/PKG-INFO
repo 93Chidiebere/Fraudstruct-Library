@@ -4,11 +4,21 @@ Version: 1.0.0
 Summary: Adversarial machine learning framework for bank fraud detection and model simulation
 Author-email: "Chidiebere V. Christopher" <vchidiebere.vc@gmail.com>
 License: MIT
+Project-URL: Homepage, https://github.com/93Chidiebere/Fraudstruct-Library
+Project-URL: Repository, https://github.com/93Chidiebere/Fraudstruct-Library
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Security
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
 Requires-Dist: pandas>=1.5
 Requires-Dist: numpy>=1.23
 Requires-Dist: scikit-learn>=1.2
+Requires-Dist: fastapi>=0.95.0
+Requires-Dist: uvicorn>=0.20.0
+Requires-Dist: networkx>=2.8
 Provides-Extra: spark
 Requires-Dist: pyspark>=3.4; extra == "spark"
 Provides-Extra: dev
@@ -16,6 +26,8 @@ Requires-Dist: pytest; extra == "dev"
 Requires-Dist: black; extra == "dev"
 Requires-Dist: flake8; extra == "dev"
 Requires-Dist: jupyter; extra == "dev"
+Requires-Dist: build; extra == "dev"
+Requires-Dist: twine; extra == "dev"
 
 # **Fraudstruct**
 
