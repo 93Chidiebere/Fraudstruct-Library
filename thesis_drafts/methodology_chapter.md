@@ -13,7 +13,7 @@ In this context, the research artifact is **Fraudstruct**—a hybrid real-time s
 ---
 
 ## 3.2 Graph Formulation and Topological Modeling
-Financial transaction systems are modeled as a dynamic, directed temporal graph. 
+Financial transaction systems are modeled as a dynamic, directed temporal graph:
 
 \[G(t) = (V, E(t))\]
 
@@ -25,7 +25,7 @@ Each transaction \(e_i \in E(t)\) is modeled as a directed edge:
 
 \[e_i = (u, v, a, t, c)\]
 
-where \(u\) is the source account, \(v\) is the destination account, \(a \in \mathbb{R}^+\) is the transaction amount, \(t\) is the transaction timestamp, and \(c\) is the transaction channel.
+where \(u\) is the source account, \(v\) is the destination account, \(a \in \mathbb{R}^+\) is the transaction amount, \(t\) is the transaction timestamp, and \(c\) is the transaction channel (e.g., NIP, POS, USSD, ATM).
 
 ### Node Feature Extraction
 At any time \(t\), each node \(v \in V\) is mapped to a feature vector \(x_v(t) \in \mathbb{R}^d\). The baseline node features represent local transactional velocity and topological status:
@@ -64,7 +64,7 @@ No individual transaction between the source and a mule, or a mule and the desti
 \[\forall i \in \{1, \dots, k\}: \quad a(s, m_i) < \theta_{amount} \quad \text{and} \quad a(m_i, d) < \theta_{amount}\]
 
 ### 3. Temporal Dispersion
-To prevent triggering temporal velocity checks (e.g., multiple rapid transfers), the adversary space out transactions by introducing a temporal delta \(\Delta t\):
+To prevent triggering temporal velocity checks (e.g., multiple rapid transfers), the adversary spaces out transactions by introducing a temporal delta \(\Delta t\):
 
 \[t(s, m_{i+1}) - t(s, m_i) \ge \Delta t\]
 
@@ -109,31 +109,44 @@ where \(\alpha\) is the learning rate.
 
 During the design and implementation of Fraudstruct, several key engineering trade-offs were evaluated:
 
-### 1. Graph Representation: MultiDiGraph vs. Simple Directed Graph
+### 3.5.1 MultiDiGraph vs. Simple Weighted Directed Graph
 * **MultiDiGraph**: Allows multiple directed edges between the same two accounts. This accurately reflects real banking behavior where Account A transfers money to Account B multiple times.
 * **Simple Directed Graph**: Aggregates multiple transactions into a single weighted edge.
-* **Decision**: We selected a `MultiDiGraph` for the Warm-Path memory model to ensure no transaction history is lost. However, for GNN feature propagation, we convert the multi-graph to a weighted `DiGraph` (where edge weight = transaction count) to prevent matrix dimension instability during degree matrix calculations.
+* **Trade-off Decision**: We selected a `MultiDiGraph` for the Warm-Path memory model to ensure no transaction history is lost. However, for GNN feature propagation, we convert the multi-graph to a weighted `DiGraph` (where edge weight = transaction count) to prevent matrix dimension instability during degree matrix calculations.
 
-### 2. Algorithmic Backend: PyTorch Geometric (PyG) vs. Pure NumPy/SciPy
+### 3.5.2 PyTorch Geometric (PyG) vs. Pure NumPy/SciPy
 * **PyTorch/PyG**: Provides GPU-accelerated deep graph neural networks.
 * **Pure NumPy/SciPy**: Performs matrix convolutions in RAM using CPU vectorized arithmetic.
-* **Decision**: We selected a **Pure NumPy** implementation for the runtime model. While PyTorch is highly efficient for model training, the installation of PyTorch and compiled C++ dependencies (such as PyG) in banking mainframes is frequently blocked by security policies. A NumPy-based SGC engine guarantees zero dependencies, fast CPU execution (sub-1ms for moderate subgraphs), and absolute environment portability.
+* **Trade-off Decision**: We selected a **Pure NumPy** implementation for the runtime model. While PyTorch is highly efficient for model training, the installation of PyTorch and compiled C++ dependencies (such as PyG) in banking mainframes is frequently blocked by security policies. A NumPy-based SGC engine guarantees zero dependencies, fast CPU execution (sub-1ms for moderate subgraphs), and absolute environment portability.
 
-### 3. Anomaly Scoring Model: Deep Autoencoders vs. SGC Node Classification
-* **Deep Autoencoders**: Good at capturing reconstruction errors on unlabeled data.
-* **SGC Node Classification**: Supervised/Semi-supervised neighborhood classification.
-* **Decision**: Selected SGC. Smurfing is a coordinated behavioral pattern; simple reconstruction error checks frequently miss split pathways if the individual transactions look normal. Neighborhood aggregation is essential to propagate the malicious labels of known flagged accounts to adjacent mule nodes.
+### 3.5.3 GNN Over-Smoothing Bounds
+* **The Problem:** In GNN message-passing, stacking too many layers causes all node embeddings to converge to the same average representation (over-smoothing), making them indistinguishable.
+* **Trade-off Decision:** We bounded SGC propagation to exactly \(K=2\) hops. In financial structuring, transactions are highly localized (attacker -> mules -> beneficiary). Limiting propagation to \(K=2\) captures the structural links of mule pathways while preventing over-smoothing, ensuring that clean accounts do not have their embeddings corrupted by distant anomalous nodes.
+
+### 3.5.4 Sliding-Window Memory Footprint
+* **The Problem:** The Warm Path stores dynamic transactions in sliding time windows (deques). If a bank processes 10,000 transactions per second, keeping a 24-hour window in memory requires storing 864 million transactions, creating a massive RAM bottleneck.
+* **Trade-off Decision:** We set the default sliding window to 1 hour. This significantly reduces the memory footprint to a manageable size (~3.6 million transactions) while still capturing the rapid transfers typical of modern digital structuring attacks.
 
 ---
 
-## 3.6 Experimental Setup and Verification Procedures
+## 3.6 Edge Cases and Operational Failures
+
+### 3.6.1 Dynamic Node Cold-Start
+Newly opened or dormant accounts entering the transaction stream have zero historic edge connectivity. Traditional GNNs suffer from a "cold-start" problem where they assign flat or uninformative embeddings to these nodes. Fraudstruct addresses this by integrating a fallback heuristic: if a node has an in-degree and out-degree of zero, the Hot Path relies entirely on tabular profile features (KYC tier, account limits) until the Warm Path establishes relational links.
+
+### 3.6.2 Inter-bank vs. Intra-bank Latency and Delayed Labeling
+In the Nigerian payment switch context, intra-bank transactions resolve instantly inside the bank's internal ledger. Inter-bank transfers, however, route through NIBSS NIP, introducing network jitter and delayed transaction status reporting. Consequently, fraud labels may be delayed by weeks or months (chargeback delay). Fraudstruct models this operational edge case by separating active GNN training labels from live transactions, ensuring the model remains stable even when training on delayed historical datasets.
+
+---
+
+## 3.7 Experimental Setup and Verification Procedures
 To validate the system's ability to detect smurfing under realistic banking operational constraints, we designed a simulated execution framework:
 
-### 1. Data Generation
+### 3.7.1 Data Generation
 * **Organic Traffic**: Generates a network of 50 accounts transacting via exponential distributions to represent normal inter-account transfers.
 * **Adversarial Injection**: Executes the Constrained Flow Optimization attack model. An attacker transfers 600,000 NGN to a beneficiary account split across 6 mule nodes, violating temporal spacing.
 
-### 2. Evaluation Metrics
+### 3.7.2 Evaluation Metrics
 The artifact is evaluated against two groups of metrics:
 
 * **Detection Efficacy**:
