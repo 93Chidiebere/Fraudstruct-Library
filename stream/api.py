@@ -108,3 +108,17 @@ def train_graph_model(req: TrainingRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Model training failed: {str(e)}")
+
+@app.post("/v1/reset")
+def reset_engine():
+    global engine
+    engine.buffers.clear()
+    engine.feature_store.clear()
+    # Reinitialize the GraphEngine
+    import pandas as pd
+    from fraudstruct.engines.graph import GraphEngine
+    init_df = pd.DataFrame(columns=["source_account", "destination_account", "amount", "timestamp"])
+    engine.graph_engine = GraphEngine(init_df)
+    engine.gnn_model = None
+    engine.gnn_nodes_mapping = []
+    return {"status": "Success", "message": "Streaming engine buffers and graph state cleared."}

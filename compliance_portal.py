@@ -76,6 +76,19 @@ page = st.sidebar.radio(
     ["Dashboard", "Transaction Terminal", "MLOps Model Manager", "Ecosystem Context"]
 )
 
+st.sidebar.divider()
+if api_active:
+    if st.sidebar.button("Reset Simulation State", type="secondary", use_container_width=True):
+        try:
+            res = requests.post(f"{API_URL}/v1/reset")
+            if res.status_code == 200:
+                st.session_state.alerts = []
+                st.sidebar.success("Database reset successfully!")
+                time.sleep(0.5)
+                st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"Reset failed: {str(e)}")
+
 # Initialize Session State for Mock alert logger
 if "alerts" not in st.session_state:
     st.session_state.alerts = []
@@ -157,8 +170,10 @@ elif page == "Transaction Terminal":
                     if response.status_code == 200:
                         res_data = response.json()
                         decision = res_data.get("decision")
-                        score = res_data.get("anomaly_score", 0.0)
-                        reason = res_data.get("reason", "N/A")
+                        features = res_data.get("features", {})
+                        score = features.get("gnn_anomaly_score", 0.0)
+                        reasons_list = res_data.get("reasons", [])
+                        reason = "; ".join(reasons_list) if reasons_list else "Legitimate profile matches."
                         
                         # Add to session state history
                         st.session_state.alerts.insert(0, {
