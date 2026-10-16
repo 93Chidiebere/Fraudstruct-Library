@@ -1,3 +1,4 @@
+LICENSE
 README.md
 pyproject.toml
 src/fraudstruct/__init__.py
@@ -16,6 +17,7 @@ src/fraudstruct/core/statistics.py
 src/fraudstruct/core/windows.py
 src/fraudstruct/detect/behavior.py
 src/fraudstruct/detect/drift.py
+src/fraudstruct/detect/flow_structuring.py
 src/fraudstruct/detect/gcn.py
 src/fraudstruct/detect/integrity.py
 src/fraudstruct/detect/structuring.py
@@ -25,6 +27,8 @@ src/fraudstruct/engines/spark.py
 src/fraudstruct/evaluate/blindspots.py
 src/fraudstruct/evaluate/degradation.py
 src/fraudstruct/evaluate/robustness.py
+src/fraudstruct/examples/stress_test_demo.py
+src/fraudstruct/examples/synthetic_data_generation_demo.py
 src/fraudstruct/io/export.py
 src/fraudstruct/simulate/camouflage.py
 src/fraudstruct/simulate/graph_attack.py
@@ -38,3 +42,4 @@ src/fraudstruct/stream/run.py
 src/fraudstruct/train/adversarial.py
 src/fraudstruct/utils/time.py
 src/fraudstruct/utils/validation.py
+tests/test_flow_structuring.py

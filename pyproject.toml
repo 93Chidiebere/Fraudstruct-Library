@@ -4,17 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fraudstruct"
-version = "1.0.0"
-description = "Adversarial machine learning framework for bank fraud detection and model simulation"
+version = "1.0.1"
+description = "Research prototype for streaming transaction structuring detection and graph risk features"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     {name = "Chidiebere V. Christopher", email = "vchidiebere.vc@gmail.com"}
 ]
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Security",
     "Topic :: Scientific/Engineering :: Artificial Intelligence"
@@ -35,4 +37,10 @@ dependencies = [
 [project.optional-dependencies]
 spark = ["pyspark>=3.4"]
 dev = ["pytest", "black", "flake8", "jupyter", "build", "twine"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 

@@ -1,5 +1,7 @@
 import networkx as nx
 import pandas as pd
+from collections import deque
+from datetime import datetime, timezone
 from fraudstruct.core.engine import FraudstructEngine
 
 class GraphEngine(FraudstructEngine):
@@ -12,6 +14,8 @@ class GraphEngine(FraudstructEngine):
         self.time_col = time_col
         
         self.graph = nx.MultiDiGraph()
+        self._edge_expiry = deque()
+        self._last_timestamp = None
         self.update_graph(df)
 
     def update_graph(self, df):
@@ -25,29 +29,53 @@ class GraphEngine(FraudstructEngine):
             amount = float(row[self.amount_col])
             ts = row[self.time_col]
             if isinstance(ts, str):
-                ts = pd.to_datetime(ts)
+                ts = pd.to_datetime(ts, utc=True).to_pydatetime()
+            elif isinstance(ts, pd.Timestamp):
+                ts = ts.to_pydatetime()
+            if isinstance(ts, datetime) and ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            if isinstance(ts, datetime):
+                ts = ts.astimezone(timezone.utc)
+                if self._last_timestamp is not None and ts < self._last_timestamp:
+                    raise ValueError("graph events must arrive in nondecreasing timestamp order")
+                self._last_timestamp = ts
                 
-            self.graph.add_edge(
+            edge_key = self.graph.add_edge(
                 u, v,
                 amount=amount,
                 timestamp=ts,
                 is_fraud=row.get("is_fraud", False),
                 is_adversarial=row.get("is_adversarial", False)
             )
+            if isinstance(ts, datetime):
+                self._edge_expiry.append((ts, u, v, edge_key))
+
+    def prune_before(self, cutoff):
+        """Remove expired edges using the chronological ingestion queue."""
+        if isinstance(cutoff, str):
+            cutoff = pd.to_datetime(cutoff, utc=True).to_pydatetime()
+        elif isinstance(cutoff, pd.Timestamp):
+            cutoff = cutoff.to_pydatetime()
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=timezone.utc)
+        cutoff = cutoff.astimezone(timezone.utc)
+        removed = 0
+        while self._edge_expiry and self._edge_expiry[0][0] < cutoff:
+            _, source, destination, edge_key = self._edge_expiry.popleft()
+            if self.graph.has_edge(source, destination, edge_key):
+                self.graph.remove_edge(source, destination, edge_key)
+                removed += 1
+                for node in (source, destination):
+                    if node in self.graph and self.graph.degree(node) == 0:
+                        self.graph.remove_node(node)
+        return removed
 
     def get_node_features(self):
         """
         Compute standard graph metrics for all nodes.
         These serve as node features for the downstream GNN models.
         """
-        try:
-            pagerank = nx.pagerank(self.graph) if len(self.graph) > 0 else {}
-        except Exception:
-            try:
-                simple_g = nx.DiGraph(self.graph)
-                pagerank = nx.pagerank(simple_g)
-            except Exception:
-                pagerank = {node: 1.0 / max(1, len(self.graph)) for node in self.graph.nodes()}
+        pagerank = nx.pagerank(self.graph) if len(self.graph) > 0 else {}
         
         features = []
         for node in self.graph.nodes():

@@ -1,18 +1,20 @@
 Metadata-Version: 2.4
 Name: fraudstruct
-Version: 1.0.0
-Summary: Adversarial machine learning framework for bank fraud detection and model simulation
+Version: 1.0.1
+Summary: Research prototype for streaming transaction structuring detection and graph risk features
 Author-email: "Chidiebere V. Christopher" <vchidiebere.vc@gmail.com>
-License: MIT
+License-Expression: MIT
 Project-URL: Homepage, https://github.com/93Chidiebere/Fraudstruct-Library
 Project-URL: Repository, https://github.com/93Chidiebere/Fraudstruct-Library
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
 Classifier: Programming Language :: Python :: 3
-Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Classifier: Topic :: Security
 Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: pandas>=1.5
 Requires-Dist: numpy>=1.23
 Requires-Dist: scikit-learn>=1.2
@@ -28,181 +30,105 @@ Requires-Dist: flake8; extra == "dev"
 Requires-Dist: jupyter; extra == "dev"
 Requires-Dist: build; extra == "dev"
 Requires-Dist: twine; extra == "dev"
+Dynamic: license-file
 
-# **Fraudstruct**
+# Fraudstruct
 
-**Fraudstruct** is a high-performance Python framework for **real-time streaming feature stores and graph-adversarial machine learning in banking fraud detection**. It is designed to help Data Scientists and Risk Engineers simulate, detect, and harden models against **structuring (smurfing)**, **multi-hop money laundering**, and **threshold evasion** in transaction streams.
+Fraudstruct is a Python research prototype for transaction-monitoring rules,
+graph-derived features, and controlled AML scenario generation. The current
+release is not a production banking authorization service. It has no external
+feature store, deployment hardening, concurrency benchmark, or verified
+end-to-end bank SLA.
 
-The library supports a production-ready **Three-Tier Architecture** that bridges deep offline Graph Neural Networks (GNNs) with sub-10ms real-time transaction authorization endpoints.
+## S/K/W streaming detector
 
----
+`StreamingStructuringDetector` incrementally looks for a two-hop flow:
 
-## **Why Fraudstruct Exists**
-
-Traditional fraud models degrade rapidly because fraudsters actively adapt to rule-based thresholds (e.g., splitting a transaction into smaller amounts across proxy accounts/mules). 
-
-Fraudstruct addresses these operational realities:
-* **Coordinated Multi-Hop Fraud**: Fraudsters use network topologies to evade single-account checks.
-* **Strict Latency Budgets**: Banks must authorize transactions in **<50ms**, making traditional graph neural network (GNN) convolution passes on the transaction hot-path infeasible.
-* **Continuous Adaptive Evasion**: Evasion techniques evolve faster than weekly or monthly model retraining loops.
-
----
-
-## **System Architecture Overview**
-
-Fraudstruct resolves the latency-complexity trade-off using a **Three-Tier Lambda-style ML System**:
-
-```
-           [Core Banking / NIBSS / Switch]
-                          │
-         (1) Synchronous API Request (e.g. NIP/ISO 8583)
-                          ▼
-             ┌─────────────────────────┐
-             │    HOT PATH (<10ms)     │
-             │   REST API (FastAPI)    │◄─── [Loaded Model Weights]
-             └────────────┬────────────┘
-                          │ (Retrieves pre-computed GNN + temporal features)
-                          ▼
-                  ┌──────────────┐
-                  │ Feature Cache│
-                  └──────▲───────┘
-                         │ (Updates features in real-time)
-             ┌───────────┴─────────────┐
-             │    WARM PATH (<1s)      │
-             │  Streaming Event Loop   │◄─── [Transaction Log Stream]
-             └───────────┬─────────────┘
-                         │ (Aggregates historical subgraph structures)
-                         ▼
-             ┌─────────────────────────┐
-             │    COLD PATH (Offline)  │
-             │ NumPy SGC GNN Classifier│◄─── [Graph Attack Simulator]
-             └─────────────────────────┘
+```text
+source ── split transfers ──> K mule accounts ── onward transfers ──> beneficiary
 ```
 
-1. **Hot Path (Synchronous Inference)**: A lightweight REST API that retrieves pre-computed graph features and rolling temporal stats, evaluates fast rules + GNN score thresholds, and responds in **<5ms** (satisfying strict banking SLAs).
-2. **Warm Path (Near Real-Time Feature Store)**: A streaming engine that consumes transaction streams, updates the transaction graph structure (using `GraphEngine`), and updates rolling temporal windows in memory.
-3. **Cold Path (Offline Training & Simulation)**: Generates synthetic multi-hop structuring attacks on the graph, trains a **Simplifying Graph Convolution (SGC)** GNN model, and hot-deploys updated model weights to the Hot Path.
+An alert requires all configured conditions: at least `min_mules` distinct
+intermediaries, a source-to-mule total at or above `minimum_total_amount` (S),
+transactions inside `window_seconds` (W), each counted leg no larger than
+`max_leg_amount`, and source-to-mule versus mule-to-beneficiary totals within
+`flow_conservation_tolerance`. Optionally, `target_total_amount` requires the
+observed S to be within `target_amount_tolerance` of a known target. These are
+research parameters; set values for the relevant currency, jurisdiction, and
+operating policy.
 
----
+The detector retains only active-window edge events and requires
+nondecreasing event timestamps. It raises a capacity error instead of silently
+dropping evidence when `max_tracked_pairs` or `max_active_events` is reached.
+The streaming API updates a bounded recent graph for later training, but does
+not recompute graph features or run a model for each transaction. Account risk
+scores produced by cold-path work are looked up from an in-memory cache and
+must be refreshed explicitly.
 
-## **Key Capabilities**
-
-### **1. Graph representation & Feature Store**
-* NetworkX-powered transaction graph engine (`GraphEngine`) that models accounts as nodes and transactions as edges.
-* Real-time calculation of topological features (in-degree, out-degree, PageRank, running sums, and velocities).
-
-### **2. Graph-Based Evasion Simulation**
-* Multi-hop transaction-splitting simulator (`simulate_graph_splitting`). Splits a target amount $S$ from $A \rightarrow B$ across $K$ dynamic mule pathways, adding temporal spacing and amount jittering to mimic realistic money laundering.
-
-### **3. Portability & Performance (Pure NumPy GNN)**
-* Implementation of **Simplifying Graph Convolution (SGC)** (Wu et al., 2019) in pure NumPy, removing heavy compile dependencies (e.g. PyTorch Geometric or C++ bindings) and allowing seamless execution under Python 3.13.
-
-### **4. Real-time REST API**
-* FastAPI endpoint exposing `/v1/evaluate` for real-time transaction scoring and `/v1/train` to hot-deploy trained graph embeddings to the feature store.
-
----
-
-## **Installation**
-
-Install the library locally:
+### Local installation
 
 ```bash
 pip install -e .
 ```
 
-### **Required Dependencies**
-* `pandas`
-* `numpy`
-* `networkx`
-* `fastapi`
-* `httpx`
+### Configure and run the API
 
----
+The defaults below are demonstration values in the transaction amount's units.
+They are not regulatory thresholds or validated bank settings.
 
-## **Quick Start**
-
-### **1. Running the End-to-End Pipeline & Benchmark**
-Fraudstruct comes with a comprehensive verification script that runs the entire warm, hot, and cold path loop and profiles API latency:
-
-```bash
-python test_pipeline.py
+```powershell
+$env:FRAUDSTRUCT_WINDOW_SECONDS = "3600"
+$env:FRAUDSTRUCT_MIN_MULES = "3"
+$env:FRAUDSTRUCT_MIN_TOTAL_AMOUNT = "300000"
+$env:FRAUDSTRUCT_MAX_LEG_AMOUNT = "100000"
+$env:FRAUDSTRUCT_FLOW_TOLERANCE = "0.10"
+uvicorn fraudstruct.stream.api:app --host 127.0.0.1 --port 8000
 ```
 
-*Expected output log:*
-```
-==================================================
-FRAUDSTRUCT PIPELINE VERIFICATION AND BENCHMARK
-==================================================
-[Step 1] Generating organic transaction traffic...
-Generated 150 organic transactions.
+`POST /v1/evaluate` accepts `transaction_id`, `source_account`,
+`destination_account`, `amount`, and an optional ISO-8601 `timestamp`. Events
+must arrive in nondecreasing event-time order. A full pattern is reported when
+the second-hop evidence is observed; this does not imply that the source's
+earlier transfers were blocked before the full path existed. `/health` exposes
+the active configuration and bounded-state counts. `/v1/train` is a cold-path
+demonstration that trains on the recent graph and caches resulting account
+scores; it is not an online learning loop.
 
-[Step 2] Simulating adversarial smurfing path (A -> Mules -> B)...
-Generated 12 attack path transactions.
+## Scenario generation and offline augmentation
 
-[Step 3] Feeding organic stream to API evaluate endpoint...
-Inference Latency Metric (ZENITH SLA check):
-  - Average Latency: 2.447 ms
-  - 95th Percentile: 3.407 ms
+`simulate_graph_splitting` generates a labeled two-hop scenario. The first-hop
+amounts sum to S to the cent; by default, the onward amounts conserve the same
+total. A seeded run is reproducible. Use `outflow_ratio` to create an explicit
+flow-loss case. Generated records are synthetic scenario data and must be
+identified as such in any experiment.
 
-[Step 4] Feeding attack stream and checking for alerts...
-ALERT TRIGGERED on TXN-ADV-46940! Decision: FLAG, Reasons: ['Debit velocity structuring threshold breached: Sum=600000.0, Count=6']
+`adversarial_fit` is an offline helper. Its `attack_fn` must return generated
+features and their explicit binary labels (or a labeled DataFrame). It rejects
+misaligned or missing labels rather than copying labels from unrelated rows.
 
-[Step 5] Triggering Cold Path GNN Training & Hot-Deployment...
-Training response: {'status': 'Success', 'message': 'GNN model successfully trained and hot-deployed.', 'trained_nodes_count': 52}
+## Graph model
 
-[Step 6] Verifying active GNN blocking post-deployment...
-Post-GNN deployment evaluation result for attacker:
-  - Decision: BLOCK
-  - Reasons: ['High GNN network anomaly score: 0.9650']
-  - GNN Anomaly Score: 0.965
-```
+The graph classifier is an SGC-style feature propagation model followed by
+NumPy logistic regression; it is not a deep end-to-end GNN. Propagation uses an
+edge-list implementation to avoid dense quadratic adjacency allocation. Graph
+features and model scores are computed in the cold path, then scores are
+retrieved from a cache in constant time by the streaming request handler.
 
----
+## Scope and evaluation
 
-## **API Reference**
+The detector is a research prototype, not a finding of criminality. It is a
+two-hop source–mule–beneficiary pattern matcher with explicit thresholds; it
+does not establish intent, beneficial ownership, or whether an alert is a true
+crime. The API's reported latency is an in-process handler measurement and
+excludes network, deployment, queueing, concurrency, and bank authorization
+infrastructure. No end-to-end SLA claim is made by this repository.
 
-### **Evaluate Transaction**
-Exposes a NIBSS Instant Payment (NIP) compliant payload structure:
+For research comparisons, use the label semantics of each public dataset,
+chronological splits, and transaction or episode metrics appropriate to the
+claim. Keep simulator-generated benchmarks identified as simulator-generated
+and report their limitations. The bundled demonstration and stress scripts are
+not empirical evidence of generalization or production performance.
 
-* **Endpoint**: `POST /v1/evaluate`
-* **Request Body**:
-  ```json
-  {
-    "transaction_id": "TXN-90283",
-    "source_account": "1029384756",
-    "destination_account": "2093847561",
-    "amount": 250000.0,
-    "timestamp": "2026-06-26T17:00:00Z",
-    "channel": "NIP"
-  }
-  ```
-* **Response Body**:
-  ```json
-  {
-    "transaction_id": "TXN-90283",
-    "decision": "APPROVE",
-    "reasons": [],
-    "latency_ms": 2.447,
-    "features": {
-      "rolling_sum": 250000.0,
-      "rolling_count": 1,
-      "in_degree": 0,
-      "out_degree": 1,
-      "gnn_anomaly_score": 0.0
-    }
-  }
-  ```
+## License
 
----
-
-## **Academic Thesis Contributions**
-This repository serves as the empirical codebase for an MSc thesis in Computer Science:
-1. **Graph-Based Tabular Evasion Modeling**: Bridges graph topology with tabular business constraints by formalizing smurfing as a dynamic flow-splitting optimization problem.
-2. **Decoupled Real-Time Streaming Graph Inference**: Proves that GNN node features can be successfully cached and served in transaction authorization switches under a `<10ms` SLA.
-3. **Online Graph Adversarial Hardening**: Details a continuous learning framework that updates graph embeddings in response to dynamic topology shifts.
-
----
-
-## **License**
-
-MIT License
+MIT. Dataset licenses and terms are separate and must be checked at the source.

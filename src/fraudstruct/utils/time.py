@@ -8,14 +8,16 @@ def normalize_window(window):
         unit = window[-1].upper()
         value = int(window[:-1])
 
+        # Pandas 3 removed the legacy uppercase H/D frequency aliases; M is
+        # ambiguous (month-end) and must be expressed explicitly as minutes.
         if unit == "H":
-            return window, value * 3600
+            return f"{value}h", value * 3600
         if unit == "D":
-            return window, value * 86400
+            return f"{value}d", value * 86400
         if unit == "M":
-            return window, value * 60
+            return f"{value}min", value * 60
 
     if isinstance(window, int):
-        return f"{window}S", window
+        return f"{window}s", window
 
     raise ValueError("Unsupported window format")

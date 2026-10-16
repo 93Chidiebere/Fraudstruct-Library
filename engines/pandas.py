@@ -19,11 +19,11 @@ class PandasEngine(FraudstructEngine):
 
     def rolling_count(self, group_col, window):
         return (
-            self.df
+            self.df.assign(_event_count=1)
             .set_index("timestamp")
-            .groupby(group_col)
-            .rolling(window)
-            .size()
+            .groupby(group_col)["_event_count"]
+            .rolling(window, closed="right")
+            .sum()
             .reset_index(name="rolling_count")
         )
 
