@@ -1,100 +1,223 @@
 # Fraudstruct
 
-Fraudstruct is a Python research prototype for transaction-monitoring rules,
-graph-derived features, and controlled AML scenario generation. The current
-release is not a production banking authorization service. It has no external
-feature store, deployment hardening, concurrency benchmark, or verified
-end-to-end bank SLA.
+Fraudstruct is a Python library for detecting transaction structuring patterns
+and exploring graph-based fraud analysis. Its streaming detector identifies
+two-hop flows from a source, through multiple intermediary accounts, to a
+shared beneficiary.
 
-## S/K/W streaming detector
-
-`StreamingStructuringDetector` incrementally looks for a two-hop flow:
-
-```text
-source ── split transfers ──> K mule accounts ── onward transfers ──> beneficiary
-```
-
-An alert requires all configured conditions: at least `min_mules` distinct
-intermediaries, a source-to-mule total at or above `minimum_total_amount` (S),
-transactions inside `window_seconds` (W), each counted leg no larger than
-`max_leg_amount`, and source-to-mule versus mule-to-beneficiary totals within
-`flow_conservation_tolerance`. Optionally, `target_total_amount` requires the
-observed S to be within `target_amount_tolerance` of a known target. These are
-research parameters; set values for the relevant currency, jurisdiction, and
-operating policy.
-
-The detector retains only active-window edge events and requires
-nondecreasing event timestamps. It raises a capacity error instead of silently
-dropping evidence when `max_tracked_pairs` or `max_active_events` is reached.
-The streaming API updates a bounded recent graph for later training, but does
-not recompute graph features or run a model for each transaction. Account risk
-scores produced by cold-path work are looked up from an in-memory cache and
-must be refreshed explicitly.
-
-### Local installation
+## Install
 
 ```bash
-pip install -e .
+python -m pip install fraudstruct
 ```
 
-### Configure and run the API
+## Quick start: detect a structuring flow
 
-The defaults below are demonstration values in the transaction amount's units.
-They are not regulatory thresholds or validated bank settings.
+The detector evaluates events in event-time order. Configure the aggregate
+source amount **S**, minimum number of distinct intermediaries **K**, time
+window **W**, maximum transfer size, and permitted flow difference. This
+example creates an alert after three mule accounts forward the funds.
 
-```powershell
-$env:FRAUDSTRUCT_WINDOW_SECONDS = "3600"
-$env:FRAUDSTRUCT_MIN_MULES = "3"
-$env:FRAUDSTRUCT_MIN_TOTAL_AMOUNT = "300000"
-$env:FRAUDSTRUCT_MAX_LEG_AMOUNT = "100000"
-$env:FRAUDSTRUCT_FLOW_TOLERANCE = "0.10"
+```python
+from datetime import datetime, timedelta, timezone
+
+from fraudstruct import StreamingStructuringDetector, StructuringConfig
+
+config = StructuringConfig(
+    window_seconds=3600,                 # W
+    min_mules=3,                          # K
+    minimum_total_amount=500.0,           # minimum S, in the transaction currency
+    max_leg_amount=250.0,                 # maximum counted transfer
+    flow_conservation_tolerance=0.05,     # 5% allowed difference per mule and overall
+)
+detector = StreamingStructuringDetector(config)
+start = datetime.now(timezone.utc)
+
+transactions = [
+    # Source splits 600 across three mule accounts.
+    ("source", "mule-1", 200.00, 0),
+    ("source", "mule-2", 200.00, 1),
+    ("source", "mule-3", 200.00, 2),
+    # Each mule forwards the funds to the same beneficiary.
+    ("mule-1", "beneficiary", 200.00, 10),
+    ("mule-2", "beneficiary", 200.00, 11),
+    ("mule-3", "beneficiary", 200.00, 12),
+]
+
+for index, (source, destination, amount, offset) in enumerate(transactions):
+    alert = detector.ingest({
+        "transaction_id": f"tx-{index + 1}",
+        "source_account": source,
+        "destination_account": destination,
+        "amount": amount,
+        "timestamp": start + timedelta(seconds=offset),
+    })
+    if alert:
+        print("Structuring pattern detected:")
+        print(alert)
+```
+
+`ingest()` returns `None` until an event completes a matching pattern. An alert
+contains the source, beneficiary, matched mule accounts, aggregate amounts,
+flow difference, and the criteria used. Alerts identify patterns for review;
+they do not determine criminal intent.
+
+## Run on a transaction dataset
+
+The simulator below is **synthetic data**. To analyze a real dataset with 200,
+200,000, or more rows, load its transaction records, map its account, amount,
+and time columns, sort by event time, and pass each row to `ingest()`. The
+detector processes records one at a time; the example keeps the input table in
+memory so it can sort it. Replace the example CSV column names with the names
+in your dataset.
+
+```python
+import pandas as pd
+
+from fraudstruct import StreamingStructuringDetector, StructuringConfig
+
+# Example schema mapping. Change the right-hand column names for your dataset.
+raw = pd.read_csv(
+    "transactions.csv",
+    dtype={"sender": "string", "receiver": "string"},
+)
+transactions = raw.rename(columns={
+    "tx_id": "transaction_id",
+    "sender": "source_account",
+    "receiver": "destination_account",
+    "value": "amount",
+    "event_time": "timestamp",
+})
+
+# If the dataset has no transaction ID, generate a unique row ID.
+if "transaction_id" not in transactions.columns:
+    transactions["transaction_id"] = [
+        f"row-{i}" for i in range(len(transactions))
+    ]
+
+required = [
+    "transaction_id", "source_account", "destination_account", "amount", "timestamp"
+]
+missing = sorted(set(required) - set(transactions.columns))
+if missing:
+    raise ValueError(f"Dataset is missing mapped columns: {missing}")
+
+transactions["timestamp"] = pd.to_datetime(
+    transactions["timestamp"], utc=True, errors="coerce"
+)
+transactions["amount"] = pd.to_numeric(transactions["amount"], errors="coerce")
+transactions = transactions.dropna(subset=required)
+transactions = transactions.sort_values("timestamp", kind="stable")
+
+detector = StreamingStructuringDetector(StructuringConfig(
+    window_seconds=3600,
+    min_mules=3,
+    minimum_total_amount=300000.0,
+    max_leg_amount=100000.0,
+    flow_conservation_tolerance=0.10,
+))
+
+for row in transactions[required].itertuples(index=False, name=None):
+    transaction_id, source, destination, amount, timestamp = row
+    alert = detector.ingest({
+        "transaction_id": str(transaction_id),
+        "source_account": str(source),
+        "destination_account": str(destination),
+        "amount": float(amount),
+        "timestamp": timestamp.to_pydatetime(),
+    })
+    if alert is not None:
+        print("Matched pattern:", alert)
+```
+
+This runs the rule-based structuring detector; it does not train XGBoost or use
+dataset fraud labels to make detections. Keep any labels from the dataset for
+the evaluation stage, and check whether they identify structuring episodes or
+only individual fraudulent transactions before treating them as episode-level
+ground truth. Choose S, K, W, currency units, and column mappings to match the
+dataset and experiment.
+
+## Generate a synthetic scenario
+
+`simulate_graph_splitting` creates synthetic data, not records from a public
+banking dataset. Use it for controlled development tests or explicitly labeled
+simulator experiments. Generated rows include `is_fraud`, `is_adversarial`,
+`scenario_role`, and `scenario_id` labels.
+
+```python
+from fraudstruct.simulate.graph_attack import simulate_graph_splitting
+
+events = simulate_graph_splitting(
+    source="source",
+    dest="beneficiary",
+    amount=600.00,
+    timestamp="2026-01-01T00:00:00Z",
+    n_splits=3,
+    max_leg_amount=250.00,
+    window_seconds=3600,
+    outflow_ratio=1.0,
+    seed=17,
+)
+
+print(events[[
+    "source_account", "destination_account", "amount", "timestamp",
+    "is_fraud", "is_adversarial", "scenario_role",
+]])
+```
+
+`outflow_ratio` controls how much each mule forwards relative to its incoming
+leg. For example, `outflow_ratio=0.9` models a 10% flow loss. Simulator output
+is generated scenario data and should be described as such in reports.
+
+## Run the streaming API
+
+Fraudstruct includes a FastAPI service. Set thresholds in the units of your
+transaction amounts, then start the server:
+
+```bash
+export FRAUDSTRUCT_WINDOW_SECONDS=3600
+export FRAUDSTRUCT_MIN_MULES=3
+export FRAUDSTRUCT_MIN_TOTAL_AMOUNT=300000
+export FRAUDSTRUCT_MAX_LEG_AMOUNT=100000
+export FRAUDSTRUCT_FLOW_TOLERANCE=0.10
 uvicorn fraudstruct.stream.api:app --host 127.0.0.1 --port 8000
 ```
 
-`POST /v1/evaluate` accepts `transaction_id`, `source_account`,
-`destination_account`, `amount`, and an optional ISO-8601 `timestamp`. Events
-must arrive in nondecreasing event-time order. A full pattern is reported when
-the second-hop evidence is observed; this does not imply that the source's
-earlier transfers were blocked before the full path existed. `/health` exposes
-the active configuration and bounded-state counts. `/v1/train` is a cold-path
-demonstration that trains on the recent graph and caches resulting account
-scores; it is not an online learning loop.
+On Windows PowerShell, set variables with `$env:FRAUDSTRUCT_WINDOW_SECONDS = "3600"`
+and the corresponding names above.
 
-## Scenario generation and offline augmentation
+Send a transaction to `POST /v1/evaluate`:
 
-`simulate_graph_splitting` generates a labeled two-hop scenario. The first-hop
-amounts sum to S to the cent; by default, the onward amounts conserve the same
-total. A seeded run is reproducible. Use `outflow_ratio` to create an explicit
-flow-loss case. Generated records are synthetic scenario data and must be
-identified as such in any experiment.
+```bash
+curl -X POST http://127.0.0.1:8000/v1/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"transaction_id":"tx-1","source_account":"source","destination_account":"mule-1","amount":200.0,"timestamp":"2026-01-01T00:00:00Z"}'
+```
 
-`adversarial_fit` is an offline helper. Its `attack_fn` must return generated
-features and their explicit binary labels (or a labeled DataFrame). It rejects
-misaligned or missing labels rather than copying labels from unrelated rows.
+The response includes a `decision` (`APPROVE`, `FLAG`, or `REVIEW`), reasons,
+the matching structuring alert if present, and `latency_ms`. The service also
+provides `GET /health`, `POST /v1/train` for cold-path graph model training,
+and `POST /v1/reset` to clear in-memory state.
 
-## Graph model
+## Configuration reference
 
-The graph classifier is an SGC-style feature propagation model followed by
-NumPy logistic regression; it is not a deep end-to-end GNN. Propagation uses an
-edge-list implementation to avoid dense quadratic adjacency allocation. Graph
-features and model scores are computed in the cold path, then scores are
-retrieved from a cache in constant time by the streaming request handler.
+| `StructuringConfig` option | Purpose |
+| --- | --- |
+| `window_seconds` | Maximum event-time window **W** |
+| `min_mules` | Minimum distinct intermediaries **K** |
+| `minimum_total_amount` | Minimum aggregate source-to-mule amount **S** |
+| `max_leg_amount` | Largest transfer included in a candidate flow; use `None` to disable the cap |
+| `flow_conservation_tolerance` | Maximum relative inflow/outflow difference per mule and across the pattern |
+| `target_total_amount` | Optional target aggregate amount for **S** |
+| `target_amount_tolerance` | Relative range allowed around `target_total_amount` |
+| `max_tracked_pairs` | Maximum active account-pair state |
+| `max_active_events` | Maximum active events retained in the rolling window |
+| `max_cached_accounts` | Maximum accounts retained in bounded caches |
 
-## Scope and evaluation
-
-The detector is a research prototype, not a finding of criminality. It is a
-two-hop source–mule–beneficiary pattern matcher with explicit thresholds; it
-does not establish intent, beneficial ownership, or whether an alert is a true
-crime. The API's reported latency is an in-process handler measurement and
-excludes network, deployment, queueing, concurrency, and bank authorization
-infrastructure. No end-to-end SLA claim is made by this repository.
-
-For research comparisons, use the label semantics of each public dataset,
-chronological splits, and transaction or episode metrics appropriate to the
-claim. Keep simulator-generated benchmarks identified as simulator-generated
-and report their limitations. The bundled demonstration and stress scripts are
-not empirical evidence of generalization or production performance.
+Events must arrive in nondecreasing event-time order. Expired events are
+removed as the event-time window advances. Capacity limits are configurable.
 
 ## License
 
-MIT. Dataset licenses and terms are separate and must be checked at the source.
+MIT. Dataset licenses and terms are separate and must be checked at their
+respective sources.
